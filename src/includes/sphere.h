@@ -2,26 +2,17 @@
 #define SPHERE_H
 
 #include <Eigen/Dense>
+#include <vector>
 
-
-class SphericalCoordinates {
-    private:
-        Eigen::ArrayXXd coordinates;
-        int height, width;
-    public:
-        SphericalCoordinates(Eigen::ArrayXXd, int, int);
-        Eigen::ArrayXXd toEquirectangularCoords();
-        Eigen::ArrayXXd getCoordinates();
-};
-
+typedef Eigen::Array<double, -1, -1, Eigen::RowMajor> ArrayDRow;
+typedef Eigen::Map<ArrayDRow> MapArrayD;
 
 class EquirectangularSphere {
     private:
         int height, width;
     public:
         EquirectangularSphere(int, int);
-        EquirectangularSphere();
-        SphericalCoordinates rotate(const Eigen::Matrix3d&);
+        std::vector<double> rotate(const Eigen::Matrix3d&);
 };
 
 

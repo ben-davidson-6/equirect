@@ -9,45 +9,48 @@ typedef Eigen::Array<double, -1, -1, Eigen::RowMajor> ArrayDRow;
 typedef std::pair<ArrayDRow, ArrayIRow> PixelCoords;
 
 
-PixelCoords calculatePixelCoords(const Eigen::ArrayXXd &coords, int height, int width) {
-    Eigen::VectorXd y = coords.col(0);
-    double widthd = 1.0*width;
-    Eigen::VectorXd x = coords.col(1).unaryExpr([widthd](double x) { return std::fmod(x, widthd); });
-    
-    Eigen::VectorXd top = y.array().floor(); 
-    Eigen::VectorXd bot = y.array().ceil().cwiseMin(height - 1);
-    Eigen::VectorXd left = x.array().floor();
-    Eigen::VectorXd right = x.array().ceil().unaryExpr([widthd](double x) { return std::fmod(x, widthd); });
+void calculatePixelCoords(const std::vector<double> &equiCoords, std::vector<int> &pixelLocations, std::vector<double> &pixelWeights, int height, int width) {
+    double maxY = height - 1;
+    double maxX = width;
+    for (size_t i = 0; i < height; i++)
+    {
+        int rowOffset = i*width*2;
 
-    // stick into array
-    Eigen::Array<int, -1, -1, Eigen::RowMajor> pixelCoords;
-    pixelCoords.resize(height*width, 4);
-    pixelCoords.col(0) = left.cast<int>();
-    pixelCoords.col(1) = right.cast<int>();
-    pixelCoords.col(2) = top.cast<int>();
-    pixelCoords.col(3) = bot.cast<int>();
+        for (size_t j = 0; j < width; j++)
+        {
+            int colOffset = j*2;
+            double x = equiCoords[rowOffset + colOffset + 1];
+            double y = equiCoords[rowOffset + colOffset];
 
-    Eigen::VectorXd leftWeight = right - x;
-    Eigen::VectorXd rightWeight = x - left;
-    Eigen::VectorXd topWeight = bot - y;
-    Eigen::VectorXd botWeight = y - top;
+            double top = std::floor(y);
+            double bot = std::min(maxY, std::ceil(y));
+            double left = std::floor(x);
+            double right = std::fmod(std::ceil(x), maxX);
+            
+            double leftWeight = right - x;
+            double rightWeight = x - left;
+            double topWeight = bot - y;
+            double botWeight = y - top;
 
-    // deals with the case where right == left or top == bot
-    leftWeight = (leftWeight.array() == 0).select(1, leftWeight);
-    topWeight = (topWeight.array() == 0).select(1, topWeight);
+            leftWeight = leftWeight == 0 ? 1 : leftWeight;
+            topWeight = topWeight == 0 ? 1 : topWeight;
 
-    // stick into array
-    Eigen::Array<double, -1, -1, Eigen::RowMajor> weights;
-    weights.resize(height*width, 4);
-    weights.col(0) = leftWeight;
-    weights.col(1) = rightWeight;
-    weights.col(2) = topWeight;
-    weights.col(3) = botWeight;
-    
-    return PixelCoords(weights, pixelCoords);
+            pixelWeights.push_back(leftWeight);
+            pixelWeights.push_back(rightWeight);
+            pixelWeights.push_back(topWeight);
+            pixelWeights.push_back(botWeight);
+
+            pixelLocations.push_back(left);
+            pixelLocations.push_back(right);
+            pixelLocations.push_back(top);
+            pixelLocations.push_back(bot);
+        }
+        
+    }
 }
 
-EquirectangularImage interpolate(EquirectangularImage original, const Eigen::ArrayXXd &coords){
+
+EquirectangularImage interpolate(EquirectangularImage original, const std::vector<double> &equiCoords){
 
     const CImg<unsigned char> image = original.getImage();
     const unsigned char* imageBuffer = image.data();
@@ -55,15 +58,16 @@ EquirectangularImage interpolate(EquirectangularImage original, const Eigen::Arr
    
     int height = original.height;
     int width = original.width;
-    PixelCoords pixelCoords = calculatePixelCoords(coords, height, width);
-    double* pixelWeights = pixelCoords.first.data();
-    int* pixelLocations = pixelCoords.second.data();
-    
+    std::vector<int> pixelLocations;
+    std::vector<double> pixelWeights;
+    calculatePixelCoords(equiCoords, pixelLocations, pixelWeights, height, width);
+
+
     for (int channel = 0; channel < 3; channel++) {
         int channelOffset = channel*height*width;
         for (int i = 0; i < height; i++) {
             for (int j = 0; j < width; j++) {
-                int offset = i*width + 4*j;
+                int offset = i*width*4 + 4*j;
                 int left = pixelLocations[offset + 0];
                 int right = pixelLocations[offset + 1];
                 int top = pixelLocations[offset + 2];
@@ -92,6 +96,6 @@ EquirectangularImage interpolate(EquirectangularImage original, const Eigen::Arr
 
 EquirectangularImage rotate(EquirectangularImage image, const Eigen::Matrix3d &rotation){
     EquirectangularSphere sphere(image.height, image.width);
-    SphericalCoordinates sphericalCoords = sphere.rotate(rotation);
-    return interpolate(image, sphericalCoords.toEquirectangularCoords());
+    std::vector<double> equiCoords = sphere.rotate(rotation);
+    return interpolate(image, equiCoords);
 }
