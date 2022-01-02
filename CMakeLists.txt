@@ -3,6 +3,7 @@ project(equirect)
 
 set(CMAKE_CXX_STANDARD 17)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+set(CMAKE_VERBOSE_MAKEFILE ON)
 set(EIGEN_DIR "/home/ben/Documents/cpp/equirect/src/eigen-3.3.9")
 
 # get google tests

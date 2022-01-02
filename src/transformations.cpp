@@ -9,18 +9,20 @@ typedef Eigen::Array<double, -1, -1, Eigen::RowMajor> ArrayDRow;
 typedef std::pair<ArrayDRow, ArrayIRow> PixelCoords;
 
 
-void calculatePixelCoords(const std::vector<double> &equiCoords, std::vector<int> &pixelLocations, std::vector<double> &pixelWeights, int height, int width) {
+void calculatePixelCoords(const std::vector<double> &equiCoords, int* pixelLocations, double* pixelWeights, int height, int width) {
     double maxY = height - 1;
     double maxX = width;
     for (size_t i = 0; i < height; i++)
     {
         int rowOffset = i*width*2;
+        int appendRowOffset = i*width*4;
 
         for (size_t j = 0; j < width; j++)
         {
             int colOffset = j*2;
-            double x = equiCoords[rowOffset + colOffset + 1];
+            int appendOffset = j*4 + appendRowOffset;
             double y = equiCoords[rowOffset + colOffset];
+            double x = equiCoords[rowOffset + colOffset + 1];
 
             double top = std::floor(y);
             double bot = std::min(maxY, std::ceil(y));
@@ -34,16 +36,16 @@ void calculatePixelCoords(const std::vector<double> &equiCoords, std::vector<int
 
             leftWeight = leftWeight == 0 ? 1 : leftWeight;
             topWeight = topWeight == 0 ? 1 : topWeight;
+            
+            pixelWeights[appendOffset + 0] = leftWeight;
+            pixelWeights[appendOffset + 1] = rightWeight;
+            pixelWeights[appendOffset + 2] = topWeight;
+            pixelWeights[appendOffset + 3] = botWeight;
 
-            pixelWeights.push_back(leftWeight);
-            pixelWeights.push_back(rightWeight);
-            pixelWeights.push_back(topWeight);
-            pixelWeights.push_back(botWeight);
-
-            pixelLocations.push_back(left);
-            pixelLocations.push_back(right);
-            pixelLocations.push_back(top);
-            pixelLocations.push_back(bot);
+            pixelLocations[appendOffset + 0] = left;
+            pixelLocations[appendOffset + 1] = right;
+            pixelLocations[appendOffset + 2] = top;
+            pixelLocations[appendOffset + 3] = bot;
         }
         
     }
@@ -58,8 +60,8 @@ EquirectangularImage interpolate(EquirectangularImage original, const std::vecto
    
     int height = original.height;
     int width = original.width;
-    std::vector<int> pixelLocations;
-    std::vector<double> pixelWeights;
+    int* pixelLocations = new int[height*width*4];
+    double* pixelWeights = new double[height*width*4];
     calculatePixelCoords(equiCoords, pixelLocations, pixelWeights, height, width);
 
 
@@ -91,6 +93,8 @@ EquirectangularImage interpolate(EquirectangularImage original, const std::vecto
         }
     }
     CImg<unsigned char> cInterpedImage(interpolatedImage, width, height, 1, 3, true);
+    delete [] pixelLocations;
+    delete [] pixelWeights;
     return EquirectangularImage(cInterpedImage);
 }
 
